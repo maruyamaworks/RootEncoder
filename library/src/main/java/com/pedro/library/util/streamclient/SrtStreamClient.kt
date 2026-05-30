@@ -17,6 +17,7 @@
 package com.pedro.library.util.streamclient
 
 import com.pedro.common.socket.base.SocketType
+import com.pedro.srt.mpeg2ts.scte35.Scte35SpliceInsert
 import com.pedro.srt.mpeg2ts.service.Mpeg2TsService
 import com.pedro.srt.srt.SrtClient
 import com.pedro.srt.srt.packets.control.handshake.EncryptionType
@@ -173,4 +174,20 @@ class SrtStreamClient(
    * Packets lost reported by NAK command. Increment each time a NAK is received.
    */
   fun getPacketsLost() = srtClient.packetsLost
+
+  /**
+   * Enable or disable SCTE-35 splice_insert support.
+   * Must be called before connecting to the server.
+   */
+  fun enableScte35(enable: Boolean) {
+    srtClient.enableScte35(enable)
+  }
+
+  /**
+   * Send a SCTE-35 splice_insert section into the stream.
+   * [enableScte35] must have been called with `true` before connecting.
+   */
+  fun sendSpliceInsert(spliceInsert: Scte35SpliceInsert) {
+    srtClient.sendSpliceInsert(spliceInsert)
+  }
 }

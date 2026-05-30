@@ -30,6 +30,7 @@ import com.pedro.common.socket.base.SocketType
 import com.pedro.common.socket.base.StreamSocket
 import com.pedro.common.toMediaFrameInfo
 import com.pedro.common.validMessage
+import com.pedro.srt.mpeg2ts.scte35.Scte35SpliceInsert
 import com.pedro.srt.mpeg2ts.service.Mpeg2TsService
 import com.pedro.srt.srt.packets.ControlPacket
 import com.pedro.srt.srt.packets.DataPacket
@@ -507,5 +508,22 @@ class SrtClient(private val connectChecker: ConnectChecker) {
     } else {
       Log.w(TAG, "Can't set custom Mpeg2TsService while streaming")
     }
+  }
+
+  /**
+   * Enable or disable SCTE-35 splice_insert support.
+   * Must be called before [connect]. When enabled, a SCTE-35 PID (stream_type 0x86)
+   * is registered in the PMT so receivers can discover the cue channel.
+   */
+  fun enableScte35(enable: Boolean) {
+    if (!isStreaming) srtSender.enableScte35(enable)
+  }
+
+  /**
+   * Send a SCTE-35 splice_insert section into the stream.
+   * [enableScte35] must have been called with `true` before [connect].
+   */
+  fun sendSpliceInsert(spliceInsert: Scte35SpliceInsert) {
+    srtSender.sendSpliceInsert(spliceInsert)
   }
 }

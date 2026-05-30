@@ -21,5 +21,5 @@ package com.pedro.srt.mpeg2ts
  *
  */
 enum class MpegType {
-  VIDEO, AUDIO, PSI
+  VIDEO, AUDIO, PSI, SCTE35
 }

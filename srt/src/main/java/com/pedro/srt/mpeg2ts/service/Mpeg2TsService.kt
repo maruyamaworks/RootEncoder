@@ -30,7 +30,8 @@ data class Mpeg2TsService(
   val providerName: String = "com.pedro.srt",
   var pmt: Pmt? = null,
   val tracks: MutableList<Track> = mutableListOf(),
-  var pcrPid: Short? = null
+  var pcrPid: Short? = null,
+  var scte35Pid: Short? = null
 ) {
 
   fun addTrack(codec: Codec) {
@@ -58,5 +59,6 @@ data class Mpeg2TsService(
     clearTracks()
     pmt = null
     pcrPid = null
+    scte35Pid = null
   }
 }

@@ -61,6 +61,12 @@ class Pmt(
       byteBuffer.putShort(((reserved2.toInt() shl 12) or (programInfoLengthUnused.toInt() shl 10) or programDescriptor.size).toShort())
       byteBuffer.put(programDescriptor)
     }
+
+    service.scte35Pid?.let { scte35Pid ->
+      byteBuffer.put(0x86.toByte()) // stream_type: SCTE-35 Cue Message Stream
+      byteBuffer.putShort(((reserved.toInt() shl 13) or scte35Pid.toInt()).toShort())
+      byteBuffer.putShort(((reserved2.toInt() shl 12) or (programInfoLengthUnused.toInt() shl 10) or 0).toShort())
+    }
   }
 
   private fun generateProgramDescriptor(codec: Codec): ByteArray {
@@ -105,6 +111,7 @@ class Pmt(
       if (track.codec == Codec.HEVC) size += 6
       else if (track.codec == Codec.OPUS) size += 10
     }
+    if (service.scte35Pid != null) size += 5
     return size
   }
 }

@@ -20,6 +20,7 @@ import com.pedro.common.TimeUtils
 import com.pedro.common.toByteArray
 import com.pedro.srt.mpeg2ts.psi.Psi
 import com.pedro.srt.mpeg2ts.psi.PsiManager
+import com.pedro.srt.mpeg2ts.scte35.Scte35Section
 import com.pedro.srt.utils.toInt
 import java.nio.ByteBuffer
 
@@ -36,6 +37,7 @@ class MpegTsPacketizer(private val psiManager: PsiManager) {
 
   private var pesContinuity = 0
   private var psiContinuity = 0
+  private var scte35Continuity = 0
 
   //4 bytes header
   private fun writeHeader(buffer: ByteBuffer, startIndicator: Boolean, pid: Int, adaptationFieldControl: AdaptationFieldControl, continuity: Int) {
@@ -70,6 +72,14 @@ class MpegTsPacketizer(private val psiManager: PsiManager) {
           val stuffingSize = buffer.remaining()
           writeStuffingBytes(buffer, stuffingSize, false)
           packets.add(buffer.toByteArray())
+        }
+        is Scte35Section -> {
+          writeHeader(buffer, true, mpegTsPayload.pid, AdaptationFieldControl.PAYLOAD, scte35Continuity)
+          mpegTsPayload.write(buffer)
+          val stuffingSize = buffer.remaining()
+          writeStuffingBytes(buffer, stuffingSize, false)
+          packets.add(buffer.toByteArray())
+          scte35Continuity = (scte35Continuity + 1) and 0xF
         }
         is Pes -> {
           val data = mpegTsPayload.bufferData
@@ -141,5 +151,6 @@ class MpegTsPacketizer(private val psiManager: PsiManager) {
   fun reset() {
     pesContinuity = 0
     psiContinuity = 0
+    scte35Continuity = 0
   }
 }

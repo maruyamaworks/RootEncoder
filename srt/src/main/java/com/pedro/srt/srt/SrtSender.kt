@@ -33,6 +33,8 @@ import com.pedro.srt.mpeg2ts.packets.H26XPacket
 import com.pedro.srt.mpeg2ts.packets.OpusPacket
 import com.pedro.srt.mpeg2ts.psi.Psi
 import com.pedro.srt.mpeg2ts.psi.PsiManager
+import com.pedro.srt.mpeg2ts.scte35.Scte35Section
+import com.pedro.srt.mpeg2ts.scte35.Scte35SpliceInsert
 import com.pedro.srt.mpeg2ts.service.Mpeg2TsService
 import com.pedro.srt.srt.packets.SrtPacket
 import com.pedro.srt.srt.packets.data.PacketPosition
@@ -42,6 +44,7 @@ import com.pedro.srt.utils.toCodec
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runInterruptible
 import java.nio.ByteBuffer
+import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Created by pedro on 20/8/23.
@@ -66,11 +69,33 @@ class SrtSender(
   private val videoPacket = H26XPacket(limitSize, psiManager)
   var socket: SrtSocket? = null
 
+  private val pendingScte35 = ConcurrentLinkedQueue<Scte35SpliceInsert>()
+  private var scte35Enabled = false
+
+  /**
+   * Enable SCTE-35 splice_insert support. Must be called before streaming starts.
+   * When enabled, a SCTE-35 PID is registered in the PMT (stream_type 0x86).
+   */
+  fun enableScte35(enable: Boolean) {
+    if (!running) scte35Enabled = enable
+  }
+
+  /**
+   * Queue a SCTE-35 splice_insert section to be sent in the stream.
+   * The section is transmitted on the next media frame opportunity.
+   * Has no effect if SCTE-35 was not enabled before streaming started.
+   */
+  fun sendSpliceInsert(spliceInsert: Scte35SpliceInsert) {
+    if (running) pendingScte35.add(spliceInsert)
+  }
+
   private fun setTrackConfig(videoEnabled: Boolean, audioEnabled: Boolean) {
     Pid.reset()
     service.clearTracks()
+    service.scte35Pid = null
     if (audioEnabled) service.addTrack(commandsManager.audioCodec.toCodec())
     if (videoEnabled) service.addTrack(commandsManager.videoCodec.toCodec())
+    if (scte35Enabled) service.scte35Pid = Pid.generatePID()
     service.generatePmt()
     psiManager.updateService(service)
   }
@@ -126,9 +151,10 @@ class SrtSender(
           val isKey = mpegTsPackets[0].isKey
           val psiPackets = psiManager.checkSendInfo(isKey, mpegTsPacketizer, chunkSize)
           val bytesPsi = sendPackets(psiPackets, MpegType.PSI)
+          val bytesScte35 = sendPendingScte35Sections(chunkSize)
           val bytes = sendPackets(mpegTsPackets, mpegTsPackets[0].type)
-          bytesSend.addAndGet(bytesPsi + bytes)
-          bytesSendPerSecond.addAndGet(bytesPsi + bytes)
+          bytesSend.addAndGet(bytesPsi + bytesScte35 + bytes)
+          bytesSendPerSecond.addAndGet(bytesPsi + bytesScte35 + bytes)
         }
       }.exceptionOrNull()
       if (error != null) {
@@ -144,7 +170,10 @@ class SrtSender(
 
   override suspend fun stopImp(clear: Boolean) {
     psiManager.reset()
-    if (clear) service = Mpeg2TsService()
+    if (clear) {
+      service = Mpeg2TsService()
+      pendingScte35.clear()
+    }
     mpegTsPacketizer.reset()
     audioPacket.reset(clear)
     videoPacket.reset(clear)
@@ -172,5 +201,22 @@ class SrtSender(
       MediaFrame.Type.VIDEO -> videoPacket.createAndSendPacket(mediaFrame) { callback(it) }
       MediaFrame.Type.AUDIO -> audioPacket.createAndSendPacket(mediaFrame) { callback(it) }
     }
+  }
+
+  private suspend fun sendPendingScte35Sections(chunkSize: Int): Long {
+    val pid = service.scte35Pid?.toInt() ?: run {
+      pendingScte35.clear()
+      return 0L
+    }
+    var total = 0L
+    while (true) {
+      val splice = pendingScte35.poll() ?: break
+      val section = Scte35Section(pid, splice)
+      val packets = mpegTsPacketizer.write(listOf(section)).chunkPackets(chunkSize).map { buf ->
+        MpegTsPacket(buf, MpegType.SCTE35, PacketPosition.SINGLE, isKey = false)
+      }
+      total += sendPackets(packets, MpegType.SCTE35)
+    }
+    return total
   }
 }
