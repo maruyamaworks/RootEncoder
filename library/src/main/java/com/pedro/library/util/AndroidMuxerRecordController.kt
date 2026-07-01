@@ -42,6 +42,8 @@ class AndroidMuxerRecordController : AsyncBaseRecordController() {
   private var videoTrack: Int = -1
   private var audioTrack: Int = -1
 
+  var orientationHint: Int = 0
+
   @Throws(IOException::class)
   override fun startRecordImp(
     path: String,
@@ -97,6 +99,7 @@ class AndroidMuxerRecordController : AsyncBaseRecordController() {
 
   private fun init() {
     if (tracks != RecordTracks.VIDEO) audioTrack = mediaMuxer?.addTrack(audioFormat!!) ?: -1
+    mediaMuxer?.setOrientationHint(orientationHint)
     mediaMuxer?.start()
     recordStatus = RecordController.Status.RECORDING
     listener?.onStatusChange(recordStatus)
