@@ -158,10 +158,11 @@ abstract class StreamBase(
   /**
    * Change the rotation used to stream and record without stopping the preview.
    *
-   * Only the video encoders are reconfigured (they are not running until startStream/startRecord)
-   * so the video source and the preview are never restarted. The resolution used in prepareVideo is
-   * kept, only swapped when the rotation is 90 or 270 (640x480 with rotation 90 produce a 480x640
-   * stream).
+   * The rotation is applied to the stream and the record video (the pixels are rotated), the same
+   * way than the rotation param of prepareVideo. Only the video encoders are reconfigured (they are
+   * not running until startStream/startRecord) so the video source and the preview are never
+   * restarted. The resolution used in prepareVideo is kept, only swapped when the rotation is 90 or
+   * 270 (640x480 with rotation 90 produce a 480x640 stream).
    *
    * This method only affects to the stream/record output. The preview orientation is not modified.
    * If you want to rotate the output related to the preview (for example stream in portrait while
@@ -177,9 +178,9 @@ abstract class StreamBase(
    * startStream or startRecord
    */
   @Throws(IllegalStateException::class, IllegalArgumentException::class)
-  fun changeVideoRotation(rotation: Int): Boolean {
+  fun setVideoRotation(rotation: Int): Boolean {
     if (isStreaming || isRecording) {
-      throw IllegalStateException("Stream and record must be stopped before changeVideoRotation")
+      throw IllegalStateException("Stream and record must be stopped before setVideoRotation")
     }
     if (rotation != 0 && rotation != 90 && rotation != 180 && rotation != 270) {
       throw IllegalArgumentException("Invalid rotation: $rotation, must be 0, 90, 180 or 270")
