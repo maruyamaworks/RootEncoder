@@ -156,6 +156,54 @@ abstract class StreamBase(
   }
 
   /**
+   * Change the rotation used to stream and record without stopping the preview.
+   *
+   * Only the video encoders are reconfigured (they are not running until startStream/startRecord)
+   * so the video source and the preview are never restarted. The resolution used in prepareVideo is
+   * kept, only swapped when the rotation is 90 or 270 (640x480 with rotation 90 produce a 480x640
+   * stream).
+   *
+   * This method only affects to the stream/record output. The preview orientation is not modified.
+   * If you want to rotate the output related to the preview (for example stream in portrait while
+   * the preview is in landscape) call also:
+   * getGlInterface().setStreamRotation(rotation)
+   *
+   * Must be called after prepareVideo and before startStream/startRecord.
+   *
+   * @param rotation 0, 90, 180 or 270
+   * @throws IllegalStateException if stream or record is running
+   * @throws IllegalArgumentException if the rotation value is invalid
+   * @return True if success, False if failed. If false you need call prepareVideo again before
+   * startStream or startRecord
+   */
+  @Throws(IllegalStateException::class, IllegalArgumentException::class)
+  fun changeVideoRotation(rotation: Int): Boolean {
+    if (isStreaming || isRecording) {
+      throw IllegalStateException("Stream and record must be stopped before changeVideoRotation")
+    }
+    if (rotation != 0 && rotation != 90 && rotation != 180 && rotation != 270) {
+      throw IllegalArgumentException("Invalid rotation: $rotation, must be 0, 90, 180 or 270")
+    }
+    val isPortrait = rotation == 90 || rotation == 270
+    if (rotation != videoEncoder.rotation) {
+      if (differentRecordResolution) {
+        videoEncoderRecord.rotation = rotation
+        if (!videoEncoderRecord.prepareVideoEncoder()) return false
+      }
+      videoEncoder.rotation = rotation
+      if (!videoEncoder.prepareVideoEncoder()) return false
+    }
+    if (differentRecordResolution) {
+      if (isPortrait) glInterface.setEncoderRecordSize(videoEncoderRecord.height, videoEncoderRecord.width)
+      else glInterface.setEncoderRecordSize(videoEncoderRecord.width, videoEncoderRecord.height)
+    }
+    if (isPortrait) glInterface.setEncoderSize(videoEncoder.height, videoEncoder.width)
+    else glInterface.setEncoderSize(videoEncoder.width, videoEncoder.height)
+    glInterface.setStreamIsPortrait(isPortrait)
+    return true
+  }
+
+  /**
    * Necessary only one time before start stream or record.
    * If you want change values stop stream and record is necessary.
    *
